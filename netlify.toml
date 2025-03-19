@@ -1,0 +1,29 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20.11.0"
+  NPM_VERSION = "10.2.4"
+
+# Use NextJS plugin for server-side rendering
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Forward API requests to the Next.js API handler
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/next/api/:splat"
+  status = 200
+
+# Catch-all handler for Next.js routing
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/next"
+  status = 200
+  force = false
+
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = "*" 
