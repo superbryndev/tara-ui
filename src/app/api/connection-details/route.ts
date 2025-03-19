@@ -16,7 +16,7 @@ export interface ConnectionDetails {
   participantToken: string;
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     console.log("Connection details API called");
     
