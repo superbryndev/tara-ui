@@ -54,8 +54,11 @@ export async function GET(request: Request) {
     // Generate a unique participant identity
     const participantIdentity = `user-${Math.floor(Math.random() * 100000)}`;
     
-    // Always use the consistent room name for the Tara agent
-    const roomName = 'tara-medical-counselor';
+    // Generate a unique room name for each user session
+    // This ensures each user gets their own dedicated room and agent
+    const timestamp = Date.now();
+    const uniqueId = Math.floor(Math.random() * 100000);
+    const roomName = `tara-medical-counselor-${timestamp}-${uniqueId}`;
     
     // Create the access token with the required credentials
     const token = new AccessToken(API_KEY, API_SECRET, {
