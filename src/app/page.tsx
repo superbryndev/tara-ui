@@ -20,20 +20,12 @@ import { motion } from 'framer-motion';
 // Max call duration in seconds (5 minutes)
 const MAX_CALL_DURATION = 5 * 60;
 
-type FeedbackData = {
-  taskCompleted: boolean;
-  humanScore: number;
-  feedbackText: string;
-  timestamp: string;
-};
-
 export default function Page() {
   const [token, setToken] = useState('');
   const [serverUrl, setServerUrl] = useState('');
-  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [showCallEndedScreen, setShowCallEndedScreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   // Function to connect to the LiveKit room
   const handleConnect = useCallback(async () => {
@@ -67,54 +59,19 @@ export default function Page() {
 
   // Function to handle disconnection
   const handleDisconnect = useCallback(() => {
-    setShowFeedbackForm(true);
+    setShowCallEndedScreen(true);
   }, []);
 
-  // Function to handle feedback submission
-  const handleFeedbackSubmit = useCallback(async (data: FeedbackData) => {
-    try {
-      console.log('Submitting feedback to database:', data);
-      
-      // Submit feedback to API
-      const response = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit feedback');
-      }
-      
-      // Mark feedback as submitted
-      setFeedbackSubmitted(true);
-      
-      // Reset state after a brief delay to show success message
-      setTimeout(() => {
-        setShowFeedbackForm(false);
-        setToken('');
-        setFeedbackSubmitted(false);
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      // Still reset state even if there's an error, but after a longer delay
-      setTimeout(() => {
-        setShowFeedbackForm(false);
-        setToken('');
-        setFeedbackSubmitted(false);
-      }, 3000);
-    }
-  }, []);
+  // Function to restart call
+  const handleRestart = useCallback(() => {
+    setShowCallEndedScreen(false);
+    setToken('');
+    handleConnect();
+  }, [handleConnect]);
 
-  // If showing feedback form
-  if (showFeedbackForm) {
-    return <FeedbackForm 
-      onSubmit={handleFeedbackSubmit} 
-      onClose={() => setToken('')}
-      isSubmitted={feedbackSubmitted} 
-    />;
+  // If showing call ended screen
+  if (showCallEndedScreen) {
+    return <CallEndedScreen onRestart={handleRestart} />;
   }
 
   // If not connected yet
@@ -416,387 +373,65 @@ function VoiceConference({ onDisconnect }: { onDisconnect: () => void }) {
   );
 }
 
-// Feedback Form component
-function FeedbackForm({ 
-  onSubmit, 
-  onClose,
-  isSubmitted 
-}: { 
-  onSubmit: (data: FeedbackData) => Promise<void>;
-  onClose: () => void;
-  isSubmitted: boolean;
-}) {
-  const [taskCompleted, setTaskCompleted] = useState<boolean | null>(null);
-  const [humanScore, setHumanScore] = useState<number>(3);
-  const [feedbackText, setFeedbackText] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState(1);
-  const maxSteps = 3;
-
-  const handleSubmit = async () => {
-    if (taskCompleted === null) {
-      setError('Please indicate whether you were able to book successfully.');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    setError(null);
-    
-    await onSubmit({
-      taskCompleted,
-      humanScore,
-      feedbackText,
-      timestamp: new Date().toISOString()
-    });
-    
-    setIsSubmitting(false);
-  };
-
-  const nextStep = () => {
-    if (step === 1 && taskCompleted === null) {
-      setError('Please select Yes or No before continuing');
-      return;
-    }
-    
-    if (step < maxSteps) {
-      setStep(step + 1);
-      setError(null);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  const prevStep = () => {
-    if (step > 1) {
-      setStep(step - 1);
-      setError(null);
-    }
-  };
-
-  if (isSubmitted) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-[var(--background-rgb)] to-[var(--accent-bg)] p-4">
-        <motion.div 
-          className="welcome-container clean-panel p-10 text-center"
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        >
-          <motion.div 
-            className="flex justify-center mb-6"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.7 }}
-          >
-            <div className="w-20 h-20 rounded-full bg-[var(--accent-color)] flex items-center justify-center">
-              <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-          </motion.div>
-          <motion.h2 
-            className="text-2xl font-bold mb-4 text-[var(--muted-color)]"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.7 }}
-          >
-            Thank you for your feedback!
-          </motion.h2>
-          <motion.p 
-            className="text-[var(--accent-color-dark)] mb-8"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.7 }}
-          >
-            Your feedback helps us improve our services.
-          </motion.p>
-          
-          <motion.button 
-            onClick={onClose}
-            className="welcome-button"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.7 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            Return to Home
-          </motion.button>
-        </motion.div>
-      </div>
-    );
-  }
-
+// Simple Call Ended screen component
+function CallEndedScreen({ onRestart }: { onRestart: () => void }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-[var(--background-rgb)] to-[var(--accent-bg)] p-4">
       <motion.div 
-        className="welcome-container clean-panel p-10 relative overflow-hidden"
+        className="welcome-container clean-panel p-10 text-center"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        {/* Decorative elements */}
-        <div className="absolute -top-16 -right-16 w-32 h-32 rounded-full bg-[var(--accent-color-light)] opacity-20"></div>
-        <div className="absolute -bottom-16 -left-16 w-32 h-32 rounded-full bg-[var(--accent-color-light)] opacity-20"></div>
-        
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-bold text-gradient">Your Feedback</h2>
-          <button 
-            onClick={onClose}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--muted-color)] bg-gray-100 hover:bg-gray-200 transition-colors"
-            aria-label="Close"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <motion.div 
+          className="flex justify-center mb-6"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.7 }}
+        >
+          <div className="w-20 h-20 rounded-full bg-green-400 flex items-center justify-center shadow-lg shadow-green-200">
+            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-          </button>
-        </div>
-        
-        {/* Progress bar */}
-        <div className="mb-8">
-          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-            <motion.div 
-              className="h-full bg-[var(--accent-color)]"
-              initial={{ width: `${(1 / maxSteps) * 100}%` }}
-              animate={{ width: `${(step / maxSteps) * 100}%` }}
-              transition={{ duration: 0.3 }}
-            ></motion.div>
           </div>
-          <div className="flex justify-between text-xs mt-2 text-[var(--muted-color)]">
-            <span>Start</span>
-            <span>Finish</span>
-          </div>
-        </div>
+        </motion.div>
+        <motion.h2 
+          className="text-2xl font-bold mb-4 text-[var(--muted-color)]"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.7 }}
+        >
+          Call Ended
+        </motion.h2>
+        <motion.p 
+          className="text-green-600 mb-8"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.7 }}
+        >
+          Thank you for speaking with Tara.
+        </motion.p>
         
-        {/* Form Steps */}
-        <div className="min-h-[320px]">
-          {/* Step 1: Task completion */}
-          {step === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <h3 className="text-xl font-semibold mb-6 text-[var(--muted-color)]">
-                Were you able to book successfully?
-              </h3>
-              <div className="space-y-4">
-                <motion.button
-                  type="button"
-                  onClick={() => setTaskCompleted(true)}
-                  className={`w-full py-4 px-5 rounded-xl transition-all flex items-center ${
-                    taskCompleted === true 
-                      ? 'bg-[var(--accent-color)] text-white shadow-lg' 
-                      : 'bg-white text-[var(--muted-color)] hover:bg-gray-50 border border-gray-200 shadow-sm'
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className={`w-6 h-6 rounded-full mr-3 border-2 flex items-center justify-center ${
-                    taskCompleted === true 
-                      ? 'border-white' 
-                      : 'border-[var(--accent-color)]'
-                  }`}>
-                    {taskCompleted === true && (
-                      <motion.div 
-                        className="w-3 h-3 bg-white rounded-full"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    )}
-                  </div>
-                  <span className="text-lg">Yes</span>
-                </motion.button>
-                
-                <motion.button
-                  type="button"
-                  onClick={() => setTaskCompleted(false)}
-                  className={`w-full py-4 px-5 rounded-xl transition-all flex items-center ${
-                    taskCompleted === false 
-                      ? 'bg-[var(--accent-color)] text-white shadow-lg' 
-                      : 'bg-white text-[var(--muted-color)] hover:bg-gray-50 border border-gray-200 shadow-sm'
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className={`w-6 h-6 rounded-full mr-3 border-2 flex items-center justify-center ${
-                    taskCompleted === false 
-                      ? 'border-white' 
-                      : 'border-[var(--accent-color)]'
-                  }`}>
-                    {taskCompleted === false && (
-                      <motion.div 
-                        className="w-3 h-3 bg-white rounded-full"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    )}
-                  </div>
-                  <span className="text-lg">No</span>
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
-          
-          {/* Step 2: Rating */}
-          {step === 2 && (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <h3 className="text-xl font-semibold mb-6 text-[var(--muted-color)]">
-                How human-like was Tara?
-              </h3>
-              <div className="flex justify-between items-center mb-4">
-                {[1, 2, 3, 4, 5].map((rating) => (
-                  <motion.button
-                    key={rating}
-                    type="button"
-                    onClick={() => setHumanScore(rating)}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center text-lg transition-colors ${
-                      humanScore === rating 
-                        ? 'bg-[var(--accent-color)] text-white shadow-lg' 
-                        : 'bg-white text-[var(--muted-color)] border border-gray-200 shadow-sm hover:bg-gray-50'
-                    }`}
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    {rating}
-                  </motion.button>
-                ))}
-              </div>
-              <div className="flex justify-between text-sm mt-2 px-2 text-[var(--muted-color)]">
-                <span>Very Robotic</span>
-                <span>Very Human</span>
-              </div>
-              
-              <div className="mt-8 p-4 rounded-lg bg-[var(--accent-bg)] text-[var(--accent-color-dark)]">
-                <div className="flex">
-                  <div className="mr-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm">
-                    Your rating helps us improve how natural and helpful Tara sounds when speaking with patients.
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-          
-          {/* Step 3: Feedback text */}
-          {step === 3 && (
-            <motion.div
-              key="step3"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <h3 className="text-xl font-semibold mb-5 text-[var(--muted-color)]">
-                Additional feedback
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Share your thoughts about your conversation with Tara and how we can improve.
-              </p>
-              <textarea
-                id="feedback"
-                rows={5}
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)]"
-                placeholder="Your feedback is valuable to us..."
-              />
-              
-              <div className="flex items-center mt-4 text-sm text-gray-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[var(--accent-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Your feedback is anonymous and helps us improve our service.</span>
-              </div>
-            </motion.div>
-          )}
-        </div>
+        <motion.p 
+          className="text-gray-600 mb-8"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.45, duration: 0.7 }}
+        >
+          Please fill our feedback form below to help us improve.
+        </motion.p>
         
-        {/* Error message */}
-        {error && (
-          <motion.div 
-            className="mb-4 p-4 bg-red-50 text-red-600 rounded-lg border border-red-100"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {error}
-            </div>
-          </motion.div>
-        )}
-        
-        {/* Navigation buttons */}
-        <div className="flex justify-between mt-8">
-          {step > 1 ? (
-            <motion.button
-              type="button"
-              onClick={prevStep}
-              className="px-6 py-3 text-[var(--muted-color)] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all flex items-center shadow-sm"
-              disabled={isSubmitting}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back
-            </motion.button>
-          ) : (
-            <motion.button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-3 text-[var(--muted-color)] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              Skip
-            </motion.button>
-          )}
-          
-          <motion.button
-            type="button"
-            onClick={nextStep}
-            className="px-6 py-3 bg-[var(--accent-color)] text-white rounded-lg hover:bg-[var(--accent-color-dark)] transition-all shadow-md flex items-center"
-            disabled={isSubmitting}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {isSubmitting ? (
-              <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : step === maxSteps ? (
-              <>Submit<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg></>
-            ) : (
-              <>Next<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg></>
-            )}
-          </motion.button>
-        </div>
+        <motion.button 
+          onClick={onRestart}
+          className="welcome-button bg-green-400 text-white hover:bg-green-500 shadow-md shadow-green-200"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.7 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          Start New Call
+        </motion.button>
       </motion.div>
     </div>
   );
